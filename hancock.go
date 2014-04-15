@@ -47,27 +47,39 @@ func isValidTS(ts string, expireSeconds int) (string, bool) {
 // the signing parameters, "apikey", "ts", "data".
 // If the validation fails an error is also returned with both the message
 // and an HTTP status code matching the error.
+//
+// When `expireSeconds` is -1 the time check is skipped
+// When `expireSeconds` is -2 the security check is skipped altogether (everything is valid)
+// ** 0 was not used as it's the default value for ints, and could allow attacks
+//    when `expireSeconds` is not set properly
 func Validate(r *http.Request, pKey string, expireSeconds int) (url.Values, *Error) {
 	q := r.URL.Query()
-	if expireSeconds > -1 {
-		// Validate timestamp
+	switch expireSeconds {
+	default: // Validate expire seconds is in range
 		ts := q.Get("ts")
 		if s, ok := isValidTS(ts, expireSeconds); !ok {
 			return nil, newError(http.StatusNotAcceptable, "%s timestamp %s", s, ts)
 		}
+	case -1: // Ignore expire time
+		// pass
+	case -2: // Disable security altogether
+		q.Del("data")
+		q.Del("apikey")
+		q.Del("ts")
+		return q, nil
 	}
 
 	// Generate `METHOD:QUERY_STRING` string for hashing (removing `data` param)
 	data := q.Get("data")
 	q.Del("data")
-	s := fmt.Sprintf("%s:%s", r.Method, q.Encode())
+	sig := fmt.Sprintf("%s:%s", r.Method, q.Encode())
 
 	// Validate hash
 	hash := hmac.New(sha256.New, []byte(pKey))
-	hash.Write([]byte(s))
+	hash.Write([]byte(sig))
 	encHash := base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	if encHash != data {
-		return nil, newError(http.StatusUnauthorized, "signature mismatch %s != %s", encHash, data)
+		return nil, newError(http.StatusUnauthorized, "signature mismatch `%s` != `%s`", encHash, data)
 	}
 
 	// Remove remaining signature params

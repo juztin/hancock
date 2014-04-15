@@ -1,3 +1,3 @@
 #!/bin/sh -
 
-go build ../hancock
+go build ../hancock ../hancock/wrappers
