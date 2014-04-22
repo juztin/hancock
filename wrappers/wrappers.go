@@ -16,7 +16,7 @@ func WrapSigned(keyFunc KeyFunc, expireSeconds int, handlerFunc rest.Handler) re
 		key := ctx.URL.Query().Get("apikey")
 		pKey, err := keyFunc(key)
 		if err != nil {
-			log.Printf("API key retrieval failed: %s -> %s", key, err)
+			log.Printf("API key retrieval failed: `%s`; %s", key, err)
 			return http.StatusUnauthorized, nil
 		}
 
