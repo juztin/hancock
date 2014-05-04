@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Hancock signs and validates URL/Requests
-
+// Hancock signs and validates URL/Requests.
 package hancock
 
 import (
@@ -24,7 +23,7 @@ type Error struct {
 	Status int
 }
 
-// Error returns the error message
+// Error returns the error message.
 func (e Error) Error() string {
 	return e.s
 }
@@ -88,14 +87,17 @@ func Validate(r *http.Request, pKey string, expireSeconds int) (url.Values, *Err
 	return q, nil
 }
 
-// Sign returns the "data" parameter for a query-string.
-func Sign(method string, key, pKey, urlStr string, qs url.Values) string {
-	if qs == nil {
-		qs = make(url.Values)
+// SignQS returns a signed query-string from the given "qs".
+func SignQS(method, key, pKey string, qs url.Values) string {
+	values := make(url.Values)
+	if qs != nil {
+		for k, v := range qs {
+			values[k] = v
+		}
 	}
 
-	qs.Add("apikey", key)
-	qs.Add("ts", fmt.Sprintf("%d", time.Now().UTC().Unix()))
+	values.Add("apikey", key)
+	values.Add("ts", fmt.Sprintf("%d", time.Now().UTC().Unix()))
 
 	// Generate signature
 	q := qs.Encode() // Encode sorts by keys (I think this was added with 1.2'ish?)
@@ -103,7 +105,14 @@ func Sign(method string, key, pKey, urlStr string, qs url.Values) string {
 	hash := hmac.New(sha256.New, []byte(pKey))
 	hash.Write([]byte(sig))
 	encHash := base64.URLEncoding.EncodeToString(hash.Sum(nil))
-	return fmt.Sprintf("%s?%s&data=%v", urlStr, q, encHash)
+
+	values.Add("data", encHash)
+	return values.Encode()
+}
+
+// Sign returns a signed URL.
+func Sign(method string, key, pKey, urlStr string, qs url.Values) string {
+	return fmt.Sprintf("%s?%s", urlStr, SignQS(method, key, pKey, qs))
 }
 
 func newError(s int, f string, p ...interface{}) *Error {

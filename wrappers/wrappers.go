@@ -4,13 +4,15 @@ import (
 	"log"
 	"net/http"
 
-	"bitbucket.org/juztin/dingo"
-	"bitbucket.org/juztin/dingo/rest"
-	"bitbucket.org/juztin/hancock"
+	"minty.io/dingo"
+	"minty.io/dingo/rest"
+	"minty.io/hancock"
 )
 
+// KeyFunc returns a private key for the given public key.
 type KeyFunc func(key string) (string, error)
 
+// WrapSigned wraps the given handler and verifies the signature before invoking the handler.
 func WrapSigned(keyFunc KeyFunc, expireSeconds int, handlerFunc rest.Handler) rest.Handler {
 	return func(ctx dingo.Context) (int, interface{}) {
 		key := ctx.URL.Query().Get("apikey")
@@ -32,6 +34,7 @@ func WrapSigned(keyFunc KeyFunc, expireSeconds int, handlerFunc rest.Handler) re
 	}
 }
 
+// SignedWrapper returns a wrapper function preset with the keyFunc and expiration duration.
 func SignedWrapper(keyFunc KeyFunc, expireSeconds int) rest.Wrapper {
 	return func(handlerFunc rest.Handler) dingo.Handler {
 		return rest.Wrap(WrapSigned(keyFunc, expireSeconds, handlerFunc))

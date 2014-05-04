@@ -1,4 +1,4 @@
 #!/bin/sh -
 
-go install bitbucket.org/juztin/hancock
-go install bitbucket.org/juztin/hancock/wrappers
+go install minty.io/hancock
+go install minty.io/hancock/wrappers
