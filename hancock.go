@@ -52,26 +52,26 @@ func isValidTS(ts string, expireSeconds int) (string, bool) {
 // ** 0 was not used as it's the default value for ints, and could allow attacks
 //    when `expireSeconds` is not set properly
 func Validate(r *http.Request, pKey string, expireSeconds int) (url.Values, *Error) {
-	q := r.URL.Query()
+	v := r.URL.Query()
 	switch expireSeconds {
 	default: // Validate expire seconds is in range
-		ts := q.Get("ts")
+		ts := v.Get("ts")
 		if s, ok := isValidTS(ts, expireSeconds); !ok {
 			return nil, newError(http.StatusNotAcceptable, "%s timestamp %s", s, ts)
 		}
 	case -1: // Ignore expire time
 		// pass
 	case -2: // Disable security altogether
-		q.Del("data")
-		q.Del("apikey")
-		q.Del("ts")
-		return q, nil
+		v.Del("data")
+		v.Del("apikey")
+		v.Del("ts")
+		return v, nil
 	}
 
 	// Generate `METHOD:QUERY_STRING` string for hashing (removing `data` param)
-	data := q.Get("data")
-	q.Del("data")
-	sig := fmt.Sprintf("%s:%s", r.Method, q.Encode())
+	data := v.Get("data")
+	v.Del("data")
+	sig := fmt.Sprintf("%s:%s", r.Method, v.Encode())
 
 	// Validate hash
 	hash := hmac.New(sha256.New, []byte(pKey))
@@ -82,36 +82,36 @@ func Validate(r *http.Request, pKey string, expireSeconds int) (url.Values, *Err
 	}
 
 	// Remove remaining signature params
-	q.Del("apikey")
-	q.Del("ts")
-	return q, nil
+	v.Del("apikey")
+	v.Del("ts")
+	return v, nil
 }
 
 // SignQS returns a signed query-string from the given "qs".
-func SignQS(method, key, pKey string, qs url.Values) string {
-	values := make(url.Values)
-	if qs != nil {
-		for k, v := range qs {
-			values[k] = v
+func SignQS(method, key, pKey string, values url.Values) string {
+	v := make(url.Values)
+	if values != nil {
+		for k, o := range values {
+			v[k] = o
 		}
 	}
 
-	values.Add("apikey", key)
-	values.Add("ts", fmt.Sprintf("%d", time.Now().UTC().Unix()))
+	v.Add("apikey", key)
+	v.Add("ts", fmt.Sprintf("%d", time.Now().UTC().Unix()))
 
 	// Generate signature
-	q := qs.Encode() // Encode sorts by keys (I think this was added with 1.2'ish?)
-	sig := fmt.Sprintf("%s:%s", method, q)
+	enc := v.Encode() // Encode sorts by keys (I think this was added with 1.2'ish?)
+	sig := fmt.Sprintf("%s:%s", method, enc)
 	hash := hmac.New(sha256.New, []byte(pKey))
 	hash.Write([]byte(sig))
 	encHash := base64.URLEncoding.EncodeToString(hash.Sum(nil))
 
-	values.Add("data", encHash)
-	return values.Encode()
+	v.Add("data", encHash)
+	return v.Encode()
 }
 
 // Sign returns a signed URL.
-func Sign(method string, key, pKey, urlStr string, qs url.Values) string {
+func Sign(method, key, pKey, urlStr string, qs url.Values) string {
 	return fmt.Sprintf("%s?%s", urlStr, SignQS(method, key, pKey, qs))
 }
 
