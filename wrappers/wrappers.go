@@ -4,9 +4,9 @@ import (
 	"log"
 	"net/http"
 
-	"minty.io/dingo"
-	"minty.io/dingo/rest"
-	"minty.io/hancock"
+	"code.minty.io/dingo"
+	"code.minty.io/dingo/rest"
+	"code.minty.io/hancock"
 )
 
 // KeyFunc returns a private key for the given public key.
