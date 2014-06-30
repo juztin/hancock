@@ -23,6 +23,15 @@ type Error struct {
 	Status int
 }
 
+// KeyFunc returns the matching private key, and expiration duration,
+// for the given public key
+type KeyFunc func(key string) (pKey string, expires int)
+
+type signedHandler struct {
+	handler http.Handler
+	key     KeyFunc
+}
+
 // Error returns the error message.
 func (e Error) Error() string {
 	return e.s
@@ -113,6 +122,23 @@ func SignQS(method, key, pKey string, values url.Values) string {
 // Sign returns a signed URL.
 func Sign(method, key, pKey, urlStr string, qs url.Values) string {
 	return fmt.Sprintf("%s?%s", urlStr, SignQS(method, key, pKey, qs))
+}
+
+func (h *signedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("apikey")
+	pKey, expires := h.key(key)
+	if pKey == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	} else if _, err := Validate(r, pKey, expires); err != nil {
+		w.WriteHeader(err.Status)
+		return
+	}
+	h.handler.ServeHTTP(w, r)
+}
+
+func SignedHandler(h http.Handler, fn KeyFunc) http.Handler {
+	return &signedHandler{h, fn}
 }
 
 func newError(s int, f string, p ...interface{}) *Error {
