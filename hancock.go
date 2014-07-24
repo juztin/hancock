@@ -9,6 +9,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,12 +17,25 @@ import (
 	"time"
 )
 
+type RequestInfo struct {
+	APIKey     string      `json:"apiKey"`
+	Host       string      `json:"host"`
+	Proto      string      `json:"proto"`
+	RemoteAddr string      `json:"remoteAddr"`
+	RequestURI string      `json:"requestURI"`
+	Header     interface{} `json:"header"`
+	//Header     string      `json:"header"`
+}
+
 // Error is used by Validate to return an error with
 // a matching HTTP status code.
 type Error struct {
-	s      string
-	Status int
+	msg     string
+	Status  int         `json:"status"`
+	Request RequestInfo `json:"request"`
 }
+
+type LogFunc func(...interface{})
 
 // KeyFunc returns the matching private key, and expiration duration,
 // for the given public key
@@ -30,11 +44,12 @@ type KeyFunc func(key string) (pKey string, expires int)
 type signedHandler struct {
 	handler http.Handler
 	key     KeyFunc
+	Log     LogFunc
 }
 
 // Error returns the error message.
 func (e Error) Error() string {
-	return e.s
+	return e.msg
 }
 
 func isValidTS(ts string, expireSeconds int) (string, bool) {
@@ -66,7 +81,7 @@ func Validate(r *http.Request, pKey string, expireSeconds int) (url.Values, *Err
 	default: // Validate expire seconds is in range
 		ts := v.Get("ts")
 		if s, ok := isValidTS(ts, expireSeconds); !ok {
-			return nil, newError(http.StatusNotAcceptable, "%s timestamp %s", s, ts)
+			return nil, newError(http.StatusNotAcceptable, r, "%s timestamp %s", s, ts)
 		}
 	case -1: // Ignore expire time
 		// pass
@@ -87,7 +102,7 @@ func Validate(r *http.Request, pKey string, expireSeconds int) (url.Values, *Err
 	hash.Write([]byte(sig))
 	encHash := base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	if encHash != data {
-		return nil, newError(http.StatusUnauthorized, "signature mismatch `%s` != `%s`", encHash, data)
+		return nil, newError(http.StatusUnauthorized, r, "signature mismatch `%s` != `%s`, %#v", encHash, data, r)
 	}
 
 	// Remove remaining signature params
@@ -132,18 +147,28 @@ func (h *signedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if _, err := Validate(r, pKey, expires); err != nil {
 		w.WriteHeader(err.Status)
+		h.Log(err)
 		return
 	}
 	h.handler.ServeHTTP(w, r)
 }
 
-func SignedHandler(h http.Handler, fn KeyFunc) http.Handler {
-	return &signedHandler{h, fn}
+func SignedHandler(h http.Handler, keyFn KeyFunc, logFn LogFunc) http.Handler {
+	return &signedHandler{h, keyFn, logFn}
 }
 
-func newError(s int, f string, p ...interface{}) *Error {
+func newError(status int, r *http.Request, fmtStr string, params ...interface{}) *Error {
+	header, _ := json.Marshal(r.Header)
 	return &Error{
-		s:      fmt.Sprintf(f, p...),
-		Status: s,
+		msg:    fmt.Sprintf(fmtStr, params...),
+		Status: status,
+		Request: RequestInfo{
+			r.URL.Query().Get("apikey"),
+			r.Host,
+			r.Proto,
+			r.RemoteAddr,
+			r.RequestURI,
+			string(header),
+		},
 	}
 }
