@@ -30,8 +30,8 @@ type RequestInfo struct {
 // Error is used by Validate to return an error with
 // a matching HTTP status code.
 type Error struct {
-	msg     string
 	Status  int         `json:"status"`
+	Message string      `json:"message"`
 	Request RequestInfo `json:"request"`
 }
 
@@ -49,7 +49,7 @@ type signedHandler struct {
 
 // Error returns the error message.
 func (e Error) Error() string {
-	return e.msg
+	return e.Message
 }
 
 func isValidTS(ts string, expireSeconds int) (string, bool) {
@@ -102,7 +102,7 @@ func Validate(r *http.Request, pKey string, expireSeconds int) (url.Values, *Err
 	hash.Write([]byte(sig))
 	encHash := base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	if encHash != data {
-		return nil, newError(http.StatusUnauthorized, r, "signature mismatch `%s` != `%s`, %#v", encHash, data, r)
+		return nil, newError(http.StatusUnauthorized, r, "signature mismatch `%s` != `%s`", encHash, data)
 	}
 
 	// Remove remaining signature params
@@ -160,8 +160,8 @@ func SignedHandler(h http.Handler, keyFn KeyFunc, logFn LogFunc) http.Handler {
 func newError(status int, r *http.Request, fmtStr string, params ...interface{}) *Error {
 	header, _ := json.Marshal(r.Header)
 	return &Error{
-		msg:    fmt.Sprintf(fmtStr, params...),
-		Status: status,
+		Status:  status,
+		Message: fmt.Sprintf(fmtStr, params...),
 		Request: RequestInfo{
 			r.URL.Query().Get("apikey"),
 			r.Host,
