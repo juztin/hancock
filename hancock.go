@@ -53,9 +53,9 @@ func (e Error) Error() string {
 }
 
 func isValidTS(ts string, expireSeconds int) (string, bool) {
-	if i, err := strconv.ParseInt(ts, 10, 64); err == nil {
+	if t, err := strconv.ParseInt(ts, 10, 64); err == nil {
 		now := time.Now().UTC().Unix()
-		dur := now - i
+		dur := now - t
 		if dur < 0 {
 			dur = dur * -1
 		}
