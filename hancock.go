@@ -53,6 +53,9 @@ func (e Error) Error() string {
 }
 
 func isValidTS(ts string, expireSeconds int) (string, bool) {
+	if ts == "" {
+		return "missing", false
+	}
 	if t, err := strconv.ParseInt(ts, 10, 64); err == nil {
 		now := time.Now().UTC().Unix()
 		dur := now - t
